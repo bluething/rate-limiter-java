@@ -49,6 +49,37 @@ public class RateLimiterDemo {
         }
     }
 
+    static class BoundedLeakyBucketLimiter {
+        private final long capacity;
+        private final long leakIntervalMs;
+        private long lastCheckTime;
+        private long currentCapacity;
+
+
+        BoundedLeakyBucketLimiter(long capacity, int callsPerSecond) {
+            this.capacity = capacity;
+            this.leakIntervalMs = 1_000L / callsPerSecond;
+        }
+
+        public synchronized boolean tryAcquire() {
+            long now = System.currentTimeMillis();
+            long elapsed = now - lastCheckTime;
+            long leaked = elapsed / leakIntervalMs;
+            // leak out as much as we can since last check
+            if (leaked > 0) {
+                currentCapacity = Math.max(0, currentCapacity - leaked);
+                lastCheckTime += leaked * leakIntervalMs;
+            }
+            // try to pour one more unit in
+            if (currentCapacity < capacity) {
+                currentCapacity++;
+                return true;
+            }
+            // bucket is full → overflow
+            return false;
+        }
+    }
+
     static void doWork(String name) {
         System.out.println("  ✔ " + name + " executed at " + System.currentTimeMillis());
     }
@@ -86,10 +117,22 @@ public class RateLimiterDemo {
                     Thread.sleep(500);
                 }
                 break;
+            case "BLB":
+                BoundedLeakyBucketLimiter boundedLeakyBucketLimiter = new BoundedLeakyBucketLimiter(3, 1);
+                System.out.println("Testing BoundedLeakyBucketLimiter:");
+                for (int i = 0; i < 10; i++) {
+                    if (boundedLeakyBucketLimiter.tryAcquire()) {
+                        doWork("BLB");
+                    } else {
+                        System.out.println("  ✖ bounded leaky rate limit");
+                    }
+                    Thread.sleep(500);
+                }
+                break;
 
             default:
                 System.err.println("Unknown mode: " + mode);
-                System.err.println("Valid modes: FW | SW | TB | LB");
+                System.err.println("Valid modes: FW | SW | TB | LB | BLB");
                 System.exit(1);
         }
     }
