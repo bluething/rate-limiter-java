@@ -27,7 +27,42 @@ Real-World Uses
 * Network traffic shaping in routers (packets are “tokens”).  
 * Any scenario where you want to enforce both a hard cap on burst size and a soft cap on sustained rate.
 
+#### Token Bucket
+The Leaky Bucket is a rate-limiting algorithm that smooths out bursts by enforcing a constant “drip” of work. Imagine you have a bucket with a small hole in the bottom:  
+1. Incoming Work = Water Pour  
+   - Every time a request arrives, you pour one unit of water into the bucket.  
+2. Steady Leak = Constant Service Rate  
+   - The bucket leaks (empties) at a fixed rate—say, one drop every 10 ms.  
+   - That leak represents your system’s capacity to handle work steadily.  
+3. If Bucket Overflows = Throttle / Drop  
+   - The bucket has a finite size (capacity).  
+   - If too much water is poured in too quickly—faster than it can leak—the bucket overflows and excess water is discarded.  
+   - In practice, that means you reject or delay any request that arrives when the bucket is already full.
 
+Key Characteristics  
+* Fixed Output Rate  
+   Work exits (leaks) at exactly one pace—no bursts get through faster than the leak rate.  
+* Burst Absorption up to Capacity  
+  Short spikes of volume can be absorbed (up to the bucket’s size), but anything beyond that is dropped immediately.  
+* Simple State  
+* You only need to track:  
+    - nextAllowedTime (or equivalently, current “water level”)  
+    - interval between leaks (derived from desired rate)  
+* Use Cases  
+    - Enforcing a hard cap on how fast you can process events (e.g., packet scheduling, fixed-rate APIs).  
+    - Smoothing out bursty input so that downstream systems always see a steady, predictable load.
+
+Comparison to Token Bucket
+
+|  Aspect |  Leaky Bucket | Token Bucket  |
+|---|---|---|
+| **Output Rate**  | Fixed (strict pacing)  |  Variable (up to capacity, then paced) |
+| **Burst Handling**  | Limited to bucket size; excess dropped immediately  | You accumulate tokens when idle and then drain as a burst  |
+| **Common Use**  | Enforcing a hard, steady rate  | Allowing controlled bursts + long-term rate  |
+
+I create two implementation   
+1. LeakyBucketLimiter -> unlimited capacity  
+2. BoundedLeakyBucketLimiter -> limited capacity
 
 
 
