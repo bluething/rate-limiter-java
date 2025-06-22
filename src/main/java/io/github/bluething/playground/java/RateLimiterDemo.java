@@ -29,9 +29,30 @@ public class RateLimiterDemo {
         }
     }
 
+    static class LeakyBucketLimiter {
+        private long nextAllowedTime;
+        private final long intervalInMillis;
+
+        LeakyBucketLimiter(int callsPerSecond) {
+            this.nextAllowedTime = System.currentTimeMillis();
+            this.intervalInMillis = 1_000L / callsPerSecond;
+        }
+
+        public synchronized boolean tryAcquire() {
+            long now = System.currentTimeMillis();
+            if (now >= nextAllowedTime) {
+                nextAllowedTime = now + intervalInMillis;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
     static void doWork(String name) {
         System.out.println("  ✔ " + name + " executed at " + System.currentTimeMillis());
     }
+
     public static void main(String[] args) throws InterruptedException {
         if (args.length != 1) {
             System.err.println("Please specify one of: FW | SW | TB | LB");
@@ -52,6 +73,20 @@ public class RateLimiterDemo {
                     Thread.sleep(1_000);
                 }
                 break;
+
+            case "LB":
+                LeakyBucketLimiter leakyBucketLimiter = new LeakyBucketLimiter(1);
+                System.out.println("Testing LeakyBucketLimiter:");
+                for (int i = 0; i < 10; i++) {
+                    if (leakyBucketLimiter.tryAcquire()) {
+                        doWork("LB");
+                    } else {
+                        System.out.println("  ✖ leaky rate limit");
+                    }
+                    Thread.sleep(500);
+                }
+                break;
+
             default:
                 System.err.println("Unknown mode: " + mode);
                 System.err.println("Valid modes: FW | SW | TB | LB");
