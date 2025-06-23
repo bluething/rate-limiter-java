@@ -80,6 +80,35 @@ public class RateLimiterDemo {
         }
     }
 
+    static class FixedWindowLimiter {
+        private static class Window {
+            long start;
+            long count;
+        }
+        private final Window window = new Window();
+        private final int maxCalls;
+        private final long windowSize;
+
+        FixedWindowLimiter(int maxCalls, long windowSize) {
+            this.maxCalls = maxCalls;
+            this.windowSize = windowSize;
+        }
+
+        public synchronized boolean tryAcquire() {
+            long now = System.currentTimeMillis();
+            if (now - window.start >= windowSize) {
+                window.start = now;
+                window.count = 1;
+                return true;
+            }
+            if (window.count < maxCalls) {
+                window.count++;
+                return true;
+            }
+            return false;
+        }
+    }
+
     static void doWork(String name) {
         System.out.println("  ✔ " + name + " executed at " + System.currentTimeMillis());
     }
@@ -127,6 +156,18 @@ public class RateLimiterDemo {
                         System.out.println("  ✖ bounded leaky rate limit");
                     }
                     Thread.sleep(500);
+                }
+                break;
+            case "FW":
+                FixedWindowLimiter fwdLimiter = new FixedWindowLimiter(3, 5_000);
+                System.out.println("Testing SlidingWindowCounterLimiter:");
+                for (int i = 0; i < 10; i++) {
+                    if (fwdLimiter.tryAcquire()) {
+                        doWork("FW");
+                    } else {
+                        System.out.println("  ✖ bounded leaky rate limit");
+                    }
+                    Thread.sleep(1_000);
                 }
                 break;
 
