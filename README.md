@@ -64,6 +64,44 @@ I create two implementation
 1. LeakyBucketLimiter -> unlimited capacity  
 2. BoundedLeakyBucketLimiter -> limited capacity
 
+#### Fixed Window
+
+The Fixed Window algorithm divides time into consecutive, non-overlapping intervals (“windows”) of a fixed length (e.g. 60 seconds). You simply count how many requests fall into the current window, and once you hit your limit, you block any further requests until the next window begins.  
+
+How it works  
+1. Window tracking  
+    - Keep a record of the start timestamp of the active window (windowStart).  
+    - Track a counter of requests seen in that window (count).  
+2. On each request  
+    1. Compute now = currentTimeMillis().  
+    2. If now – windowStart ≥ windowSize, reset the window:  
+        - windowStart = now  
+        - count = 1 (this request)  
+        - Allow the request.  
+3. Otherwise, (we’re still in the same window):  
+    - If count < maxCalls: increment count and allow.  
+    - Else: reject (429 Too Many Requests).
+
+Characteristics  
+* Simple: only two variables (start + count), O(1) per request.  
+* Bursty edges: at the boundary you can get a “double burst”—one full window of calls just before the reset, then another full window immediately after.  
+* Accuracy: coarse-grained; may under- or over-throttle by up to one window’s worth.
+
+Pros & Cons   
+
+| Pros                                  | Cons                                                     |
+| ------------------------------------- | -------------------------------------------------------- |
+| Very easy to implement & reason about | Two adjacent windows can each hit full limit → spikes    |
+| Constant-time checks, minimal memory  | Doesn’t smooth traffic; sharp on/off throttling behavior |
+| No per‐request list or sliding math   | Inaccurate around window edges                           |
+
+When to use  
+* You need very low overhead and can tolerate occasional “double bursts.”  
+* Your load pattern is fairly even, or you already have other smoothing mechanisms in place.  
+* You want a quick PoC before moving to more precise approaches (sliding window, token bucket, etc.).
+
+
+
 
 
 
