@@ -100,9 +100,38 @@ When to use
 * Your load pattern is fairly even, or you already have other smoothing mechanisms in place.  
 * You want a quick PoC before moving to more precise approaches (sliding window, token bucket, etc.).
 
+#### Sliding Window Counter
 
+How It Works  
+1. Two buckets  
+    - Current window counter (currentCount) for the interval [T, T + W)  
+    - Previous window counter (previousCount) for the interval [T − W, T)  
+2. Window alignment  
+    - Compute the start of the “current” window as  
+        `windowStart = (now / W) * W;`  
+    - If you’ve crossed into a new window since the last request, shift:  
+        - If you jumped more than one window, zero out previousCount  
+        - Else move currentCount → previousCount  
+        - Reset currentCount = 0  
+3. Weighted estimate  
+    - Calculate how far we are into the window:  
+        `elapsed = now − windowStart;  
+        weight  = (W − elapsed) / W;`  
+    - Estimate total requests in the last W-ms span as:  
+        `estimate = currentCount + previousCount * weight`  
+    - If estimate < limit, allow (and currentCount++), else reject.
 
+```text
+Time →  |---- Minute 1 ----|---- Minute 2 ----|---- Minute 3 ----|
+Calls   | ● ● ● ● ● ● ● ●   | ● ● ● ● ●        |                 
+```
+* In Minute 1, you made 8 calls (8 marbles).  
+* In Minute 2 (halfway), you’ve already made 5 calls.
 
-
-
-
+How Sliding Window Counter works halfway through Minute 2  
+1. We ask: “How many marbles do we count for the last 60 seconds?”  
+2. From Minute 2: take all 5 marbles (because they’re in this minute).  
+3. From Minute 1: take only half of its marbles (because we’re halfway into Minute 2).   
+4. Half of 8 = 4 marbles.  
+5. 👉 Total = 5 (current) + 4 (weighted previous) = 9 marbles. 
+6. Still under the limit (10) → Allowed ✅
